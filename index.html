@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Bank Assistant</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Floating shapes for background aesthetics -->
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+
+        <div class="chat-container glassmorphism">
+            <header class="chat-header">
+                <div class="header-icon">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <div class="header-info">
+                    <h1>Nexus Support</h1>
+                    <span class="status"><i class="fa-solid fa-circle"></i> Online</span>
+                </div>
+            </header>
+
+            <div id="chatbox" class="chatbox">
+                <!-- Welcome Message -->
+                <div class="message-wrapper bot-message-wrapper">
+                    <div class="avatar"><i class="fa-solid fa-robot"></i></div>
+                    <div class="message bot">
+                        <p>Hello! I'm your Nexus Bank support assistant. How can I help you today with your banking
+                            needs?</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <input type="text" id="message" placeholder="Type your banking question..." autocomplete="off"
+                    onkeypress="handleKeyPress(event)">
+                <button onclick="sendMessage()" id="send-btn" title="Send message">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configure marked to sanitize HTML
+        marked.setOptions({
+            breaks: true, // translate newlines to <br>
+            gfm: true // github flavored markdown
+        });
+
+        const chatbox = document.getElementById("chatbox");
+        const messageInput = document.getElementById("message");
+        const sendBtn = document.getElementById("send-btn");
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function scrollToBottom() {
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const typingWrapper = document.createElement('div');
+            typingWrapper.className = 'message-wrapper bot-message-wrapper typing-indicator-wrapper';
+            typingWrapper.id = 'typing-indicator';
+            typingWrapper.innerHTML = `
+                <div class="avatar"><i class="fa-solid fa-robot"></i></div>
+                <div class="message bot typing">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+            `;
+            chatbox.appendChild(typingWrapper);
+            scrollToBottom();
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
+        async function sendMessage() {
+            const msg = messageInput.value.trim();
+            if (!msg) return;
+
+            // Disable input while sending
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+
+            // Show user message
+            const userWrapper = document.createElement('div');
+            userWrapper.className = 'message-wrapper user-message-wrapper';
+            userWrapper.innerHTML = `
+                <div class="message user">${msg}</div>
+            `;
+            chatbox.appendChild(userWrapper);
+
+            messageInput.value = "";
+            scrollToBottom();
+            showTypingIndicator();
+
+            try {
+                // Send to backend
+                const response = await fetch("/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: msg })
+                });
+
+                const data = await response.json();
+                removeTypingIndicator();
+
+                const botWrapper = document.createElement('div');
+                botWrapper.className = 'message-wrapper bot-message-wrapper';
+
+                if (data.reply) {
+                    const parsedMarkdown = marked.parse(data.reply);
+                    botWrapper.innerHTML = `
+                        <div class="avatar"><i class="fa-solid fa-robot"></i></div>
+                        <div class="message bot markdown-body">${parsedMarkdown}</div>
+                    `;
+                } else {
+                    botWrapper.innerHTML = `
+                        <div class="avatar error-avatar"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="message error-msg">Error: ${data.error || 'Failed to connect to assistant.'}</div>
+                    `;
+                }
+                chatbox.appendChild(botWrapper);
+            } catch (error) {
+                removeTypingIndicator();
+                const errorWrapper = document.createElement('div');
+                errorWrapper.className = 'message-wrapper bot-message-wrapper';
+                errorWrapper.innerHTML = `
+                    <div class="avatar error-avatar"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div class="message error-msg">Connection error. Please try again later.</div>
+                `;
+                chatbox.appendChild(errorWrapper);
+            } finally {
+                // Re-enable input
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+                scrollToBottom();
+            }
+        }
+    </script>
+</body>
+
+</html>
